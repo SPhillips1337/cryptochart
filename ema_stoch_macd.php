@@ -35,7 +35,7 @@ function ema(array $values, int $period): array
         $ema[$i] = ($values[$i] * $k) + ($ema[$i - 1] * (1 - $k));
     }
 
-    return array_slice($ema, 0, count($candles)); // Align with candle data
+    return $ema;
 }
 
 $ema25 = ema($prices, 25);
@@ -57,14 +57,18 @@ $calculateStochRsi = function ($values, $rsiPeriod = 14, $kPeriod = 3, $dPeriod 
     };
 
     // Calculate RSI values
-    $rsiVals = array_map(fn($v) => $rsi($values, $rsiPeriod), array_slice($values, 0, count($values)-$rsiPeriod+1));
+    $rsiVals = [];
+    for ($i = $rsiPeriod - 1; $i < count($values); $i++) {
+        $window = array_slice($values, $i - $rsiPeriod + 1, $rsiPeriod);
+        $rsiVals[] = $rsi($window, $rsiPeriod);
+    }
 
     // Smooth the RSI values with a simple moving average (SMA)
     $stochRsi = [];
     for ($i = 0; $i < count($rsiVals); $i++) {
         if ($i >= $kPeriod - 1) { // Start after kPeriod-1
             $window = array_slice($rsiVals, max(0, $i - $kPeriod + 1), $kPeriod);
-            $stochRsi[] = (array_sum($window) / count($window)) * 100;
+            $stochRsi[] = (array_sum($window) / count($window));
         }
     }
 
@@ -99,10 +103,9 @@ function macd(
 
     // 2. MACD line = Fast EMA – Slow EMA
     $macdLine = [];
-    for ($i = 0; $i < count($fastEma); $i++) {
-        if (isset($slowEma[$i])) {
-            $macdLine[] = $fastEma[$i] - $slowEma[$i];
-        }
+    $length = min(count($fastEma), count($slowEma));
+    for ($i = 0; $i < $length; $i++) {
+        $macdLine[] = $fastEma[$i] - $slowEma[$i];
     }
 
     // 3. Signal line = EMA of MACD line
@@ -110,15 +113,14 @@ function macd(
 
     // 4. Histogram = MACD line – Signal line
     $histogram = [];
-    for ($i = 0; $i < count($macdLine); $i++) {
-        if (isset($signalLine[$i])) {
-            $histogram[] = $macdLine[$i] - $signalLine[$i];
-        }
+    $length = min(count($macdLine), count($signalLine));
+    for ($i = 0; $i < $length; $i++) {
+        $histogram[] = $macdLine[$i] - $signalLine[$i];
     }
 
     return [
-        'macd'      => array_slice($macdLine, 0, count($candles)), // Align with candle data
-        'signal'    => array_slice($signalLine, 0, count($candles)),
+        'macd'      => $macdLine,
+        'signal'    => $signalLine,
         'histogram' => $histogram,
     ];
 }
@@ -151,25 +153,25 @@ $chartData = [
         ],
         [
             'label' => 'StochRSI',
-            'data' => array_slice($stochRsi, 0, count($candles)), // Align with candle data
+            'data' => array_merge(array_fill(0, count($prices) - count($stochRsi), null), $stochRsi),
             'borderColor' => 'green',
             'fill' => false,
         ],
         [
             'label' => 'MACD',
-            'data' => $macd,
+            'data' => array_merge(array_fill(0, count($prices) - count($macd), null), $macd),
             'borderColor' => 'purple',
             'fill' => false,
         ],
         [
             'label' => 'Signal Line',
-            'data' => $macdSignal,
+            'data' => array_merge(array_fill(0, count($prices) - count($macdSignal), null), $macdSignal),
             'borderColor' => 'orange',
             'fill' => false,
         ],
         [
             'label' => 'Histogram',
-            'data' => $macdHist,
+            'data' => array_merge(array_fill(0, count($prices) - count($macdHist), null), $macdHist),
             'borderColor' => 'yellow',
             'fill' => false,
         ]
