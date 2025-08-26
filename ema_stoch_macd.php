@@ -4,6 +4,10 @@ $dataSourceUrl = 'https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=
 $raw = file_get_contents($dataSourceUrl);
 $candles = json_decode($raw, true);
 
+if ($candles === null) {
+    die("Failed to fetch candle data.");
+}
+
 $prices = array_map(fn($c) => (float)$c[4], $candles);   // close prices
 
 /* 2️⃣ Calculate EMA(25) and EMA(100) */
