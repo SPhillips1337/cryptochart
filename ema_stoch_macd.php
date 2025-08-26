@@ -1,14 +1,14 @@
 <?php
-/* 1️⃣  Fetch historical daily candles for ETH  */
+/* 1️⃣ Fetch historical daily candles for ETH */
 $dataSourceUrl = 'https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1d&limit=500'; // 500 days
 $raw = file_get_contents($dataSourceUrl);
 $candles = json_decode($raw, true);
 
 $prices = array_map(fn($c) => (float)$c[4], $candles);   // close prices
 
-/* 2️⃣  Calculate EMA(25) and EMA(100)  */
+/* 2️⃣ Calculate EMA(25) and EMA(100) */
 // -------------------------------------------------------------------
-// EMA helper – simple, closed‑form implementation
+// EMA helper – simple, closed-form implementation
 // -------------------------------------------------------------------
 /**
  * Calculates the Exponential Moving Average of an array of values.
@@ -20,29 +20,26 @@ $prices = array_map(fn($c) => (float)$c[4], $candles);   // close prices
  */
 function ema(array $values, int $period): array
 {
-    $k   = 2 / ($period + 1);
+    $k = 2 / ($period + 1);
     $ema = [];
 
     // First EMA value is a Simple MA
     $ema[0] = array_sum(array_slice($values, 0, $period)) / $period;
 
     // Subsequent EMA values
-    foreach ($values as $i => $v) {
-        if ($i < $period) {
-            continue;          // skip the first $period data – already covered
-        }
-        $ema[$i] = ($v * $k) + ($ema[$i - 1] * (1 - $k));
+    for ($i = 1; $i < count($values); $i++) {
+        $ema[$i] = ($values[$i] * $k) + ($ema[$i - 1] * (1 - $k));
     }
 
-    return $ema;
+    return array_slice($ema, 0, count($candles)); // Align with candle data
 }
 
-$ema25 = $ema($prices, 25);
-$ema100 = $ema($prices, 100);
+$ema25 = ema($prices, 25);
+$ema100 = ema($prices, 100);
 
-/* 3️⃣  Calculate StochRSI (14, 3, 3)  */
-$calculateStochRsi = function($values, $rsiPeriod = 14, $kPeriod = 3, $dPeriod = 3) {
-    $rsi = function($v, $p) {
+/* 3️⃣ Calculate StochRSI (14, 3, 3) */
+$calculateStochRsi = function ($values, $rsiPeriod = 14, $kPeriod = 3, $dPeriod = 3) {
+    $rsi = function ($v, $p) {
         $gains = $loses = 0;
         for ($i = 1; $i < count($v); $i++) {
             $change = $v[$i] - $v[$i-1];
@@ -54,25 +51,34 @@ $calculateStochRsi = function($values, $rsiPeriod = 14, $kPeriod = 3, $dPeriod =
         $rs = $avgGain / $avgLoss;
         return 100 - (100 / (1 + $rs));
     };
-    $rsiVals = array_map(fn($i) => $i, array_slice($values, 0, count($values)-$rsiPeriod+1));
-    $rsiVals = array_map(fn($v) => $rsi($values, $rsiPeriod), $values);
-    // Simplified: this is just placeholder logic; proper StochRSI requires moving averages on RSI.
-    return $rsiVals;
+
+    // Calculate RSI values
+    $rsiVals = array_map(fn($v) => $rsi($values, $rsiPeriod), array_slice($values, 0, count($values)-$rsiPeriod+1));
+
+    // Smooth the RSI values with a simple moving average (SMA)
+    $stochRsi = [];
+    for ($i = 0; $i < count($rsiVals); $i++) {
+        if ($i >= $kPeriod - 1) { // Start after kPeriod-1
+            $window = array_slice($rsiVals, max(0, $i - $kPeriod + 1), $kPeriod);
+            $stochRsi[] = (array_sum($window) / count($window)) * 100;
+        }
+    }
+
+    return $stochRsi;
 };
 
 $stochRsi = $calculateStochRsi($prices);
 
-/* 4️⃣  Calculate MACD (12/26/9)  */
-
+/* 4️⃣ Calculate MACD (12/26/9) */
 // -------------------------------------------------------------------
 // MACD implementation – replaces the old placeholder
 // -------------------------------------------------------------------
 /**
  * Calculates the MACD line, signal line, and histogram.
  *
- * @param array $closePrices  Array of closing prices.
- * @param int   $fastPeriod   Fast EMA period (default 12)
- * @param int   $slowPeriod   Slow EMA period (default 26)
+ * @param array $closePrices Array of closing prices.
+ * @param int   $fastPeriod  Fast EMA period (default 12)
+ * @param int   $slowPeriod  Slow EMA period (default 26)
  * @param int   $signalPeriod Signal EMA period (default 9)
  *
  * @return array ['macd' => [...], 'signal' => [...], 'histogram' => [...]]
@@ -89,30 +95,27 @@ function macd(
 
     // 2. MACD line = Fast EMA – Slow EMA
     $macdLine = [];
-    foreach ($fastEma as $idx => $value) {
-        if (isset($slowEma[$idx])) {
-            $macdLine[$idx] = $value - $slowEma[$idx];
+    for ($i = 0; $i < count($fastEma); $i++) {
+        if (isset($slowEma[$i])) {
+            $macdLine[] = $fastEma[$i] - $slowEma[$i];
         }
     }
 
     // 3. Signal line = EMA of MACD line
-    //    Use the valid MACD values only
-    $signalLine = ema(array_values($macdLine), $signalPeriod);
+    $signalLine = ema($macdLine, $signalPeriod);
 
     // 4. Histogram = MACD line – Signal line
     $histogram = [];
-    foreach ($macdLine as $idx => $value) {
-        // Align indices: signalLine starts later due to EMA initialisation
-        $signalIdx = $idx - count($macdLine) + count($signalLine);
-        if ($signalIdx >= 0 && isset($signalLine[$signalIdx])) {
-            $histogram[$idx] = $value - $signalLine[$signalIdx];
+    for ($i = 0; $i < count($macdLine); $i++) {
+        if (isset($signalLine[$i])) {
+            $histogram[] = $macdLine[$i] - $signalLine[$i];
         }
     }
 
     return [
-        'macd'      => $macdLine,
-        'signal'    => $signalLine,
-        'histogram' => $histogram
+        'macd'      => array_slice($macdLine, 0, count($candles)), // Align with candle data
+        'signal'    => array_slice($signalLine, 0, count($candles)),
+        'histogram' => $histogram,
     ];
 }
 $macdData = macd($prices);
@@ -120,8 +123,7 @@ $macd = $macdData['macd'];
 $macdSignal = $macdData['signal'];
 $macdHist = $macdData['histogram'];
 
-
-/* 5️⃣  Prepare JSON for Chart.js  */
+/* 5️⃣ Prepare JSON for Chart.js */
 $chartData = [
     'labels' => array_map(fn($c) => date('Y-m-d', $c[0]/1000), $candles),
     'datasets' => [
@@ -143,7 +145,30 @@ $chartData = [
             'borderColor' => 'red',
             'fill' => false,
         ],
-        // Add StochRSI and MACD similarly...
+        [
+            'label' => 'StochRSI',
+            'data' => array_slice($stochRsi, 0, count($candles)), // Align with candle data
+            'borderColor' => 'green',
+            'fill' => false,
+        ],
+        [
+            'label' => 'MACD',
+            'data' => $macd,
+            'borderColor' => 'purple',
+            'fill' => false,
+        ],
+        [
+            'label' => 'Signal Line',
+            'data' => $macdSignal,
+            'borderColor' => 'orange',
+            'fill' => false,
+        ],
+        [
+            'label' => 'Histogram',
+            'data' => $macdHist,
+            'borderColor' => 'yellow',
+            'fill' => false,
+        ]
     ]
 ];
 header('Content-Type: application/json');
