@@ -61,7 +61,36 @@ class DataFetcher
     {
         $prices = [];
         foreach ($rawData as $item) {
+/**
+     * Process raw data into prices
+     */
+    public function processPrices(array $rawData): array
+    {
+        $prices = [];
+        foreach ($rawData as $item) {
+            if (!is_array($item) || !isset($item[4])) {
+                throw new \InvalidArgumentException('Invalid data structure: missing close price');
+            }
             $prices[] = (float) $item[4]; // Close price
+        }
+        return $prices;
+    }
+
+    /**
+     * Process timestamps into labels
+     */
+    public function processLabels(array $rawData): array
+    {
+        $labels = [];
+        foreach ($rawData as $item) {
+            if (!is_array($item) || !isset($item[0])) {
+                throw new \InvalidArgumentException('Invalid data structure: missing timestamp');
+            }
+            $labels[] = date('Y-m-d', $item[0] / 1000);
+        }
+        return $labels;
+    }
+}
         }
         return $prices;
     }
