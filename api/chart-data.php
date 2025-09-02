@@ -33,6 +33,12 @@ try {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         
         if (in_array('*', $allowedOrigins) || in_array($origin, $allowedOrigins)) {
+// Handle CORS if enabled
+    if ($securityConfig['cors_enabled']) {
+        $allowedOrigins = $securityConfig['allowed_origins'];
+        $origin = filter_input(INPUT_SERVER, 'HTTP_ORIGIN', FILTER_SANITIZE_URL) ?? '';
+        
+        if (in_array('*', $allowedOrigins) || in_array($origin, $allowedOrigins)) {
             header('Access-Control-Allow-Origin: ' . ($origin ?: '*'));
         }
         
