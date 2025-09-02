@@ -27,6 +27,12 @@ spl_autoload_register(function ($class) {
     
     // If the file exists, require it
     if (file_exists($file)) {
+$file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+    
+    // If the file exists, require it
+    if (file_exists($file) && realpath($file) === $file) {
         require $file;
+    }
+});
     }
 });
