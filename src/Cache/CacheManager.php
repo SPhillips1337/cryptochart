@@ -162,7 +162,16 @@ class CacheManager
         $cleaned = 0;
 
         foreach ($files as $file) {
+foreach ($files as $file) {
+            // Validate file path before reading contents
+            $file = realpath($file);
+            if ($file === false || !is_file($file)) {
+                continue;
+            }
+
             $data = file_get_contents($file);
+            if ($data === false) {
+                continue;
             if ($data === false) {
                 continue;
             }
