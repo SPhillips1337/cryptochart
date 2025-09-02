@@ -39,7 +39,24 @@ class DataFetcher
             ]
         ]);
 
-        $result = file_get_contents($fullUrl, false, $context);
+$fullUrl = $url . '?' . http_build_query($params);
+
+        // Use cURL instead of file_get_contents for better control and security
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $fullUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'CryptoChart');
+
+        $result = curl_exec($ch);
+
+        if ($result === false) {
+            throw new \Exception('Failed to fetch data: ' . curl_error($ch));
+        }
+
+        curl_close($ch);
+
+        $decoded = json_decode($result, true);
 
         if ($result === false) {
             throw new \Exception('Failed to fetch data');
