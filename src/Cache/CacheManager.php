@@ -101,7 +101,26 @@ class CacheManager
      */
     public function clear(): bool
     {
-        $files = glob($this->cacheDir . '/*.cache');
+{
+        // Import the realpath function from PHP's standard library
+        // realpath is used to resolve the absolute path and validate its existence
+        
+        $cacheDir = realpath($this->cacheDir);
+        if ($cacheDir === false) {
+            return false;
+        }
+        
+        $files = glob($cacheDir . '/*.cache');
+        
+        foreach ($files as $file) {
+            $filePath = realpath($file);
+            if ($filePath === false || strpos($filePath, $cacheDir) !== 0) {
+                continue;
+            }
+            if (!unlink($filePath)) {
+                return false;
+            }
+        }
         
         foreach ($files as $file) {
             if (!unlink($file)) {
