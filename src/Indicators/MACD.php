@@ -10,7 +10,22 @@ class MACD
     /**
      * Calculate MACD
      */
+*/
     public static function calculate(array $prices, int $fast = 12, int $slow = 26, int $signal = 9): array
+    {
+        // Input validation
+        if (empty($prices)) {
+            throw new \InvalidArgumentException("Prices array cannot be empty");
+        }
+        if ($fast <= 0 || $slow <= 0 || $signal <= 0) {
+            throw new \InvalidArgumentException("Periods must be positive integers");
+        }
+        if (count($prices) < max($fast, $slow, $signal)) {
+            throw new \InvalidArgumentException("Insufficient data for calculation");
+        }
+
+        $fastEMA = EMA::calculate($prices, $fast);
+        $slowEMA = EMA::calculate($prices, $slow);
     {
         $fastEMA = EMA::calculate($prices, $fast);
         $slowEMA = EMA::calculate($prices, $slow);
