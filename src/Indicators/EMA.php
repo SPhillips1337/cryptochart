@@ -44,7 +44,14 @@ class EMA
         // Calculate EMA for remaining values
         for ($i = 1; $i < $count; $i++) {
             $ema[$i] = ($prices[$i] * $k) + ($ema[$i - 1] * (1 - $k));
+$ema[0] = $sum / $period;
+
+        // Calculate EMA for remaining values
+        for ($i = $period; $i < $count; $i++) {
+            $ema[$i - $period + 1] = ($prices[$i] * $k) + ($ema[$i - $period] * (1 - $k));
         }
+
+        return $ema;
 
         return $ema;
     }
